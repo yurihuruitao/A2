@@ -8,7 +8,7 @@ import pydeck as pdk
 import altair as alt
 
 
-st.set_page_config(page_title="稱呼分析結果 - 地圖與圖表", layout="wide")
+st.set_page_config(page_title="Terms Analysis Results - Map & Charts", layout="wide")
 
 
 @st.cache_data(show_spinner=False)
@@ -123,28 +123,28 @@ def main():
     base_dir = Path(__file__).parent
     csv_path = base_dir / "稱呼分析結果.csv"
     if not csv_path.exists():
-        st.error(f"未找到數據文件：{csv_path}")
+        st.error(f"Data file not found: {csv_path}")
         st.stop()
 
     df = load_data(csv_path)
 
-    st.title("稱呼分析結果 - 地圖與圖表")
-    st.caption("數據來源：稱呼分析結果.csv")
+    st.title("Terms Analysis Results - Map & Charts")
+    st.caption("Data source: 稱呼分析結果.csv")
 
     # 收集所有人物
     all_people = sorted({p for lst in df["同行人物"] for p in lst})
 
     with st.sidebar:
-        st.header("篩選")
+        st.header("Filters")
         all_cities = [c for c in df["城市"].dropna().unique().tolist() if c]
-        selected_cities = st.multiselect("選擇城市", options=all_cities, default=all_cities)
-        selected_people = st.multiselect("選擇人物（同行）", options=all_people)
-        kw = st.text_input("稱呼關鍵詞（模糊匹配）", value="")
-        min_total = st.slider("最小總次數", 0, int(df["總次數"].max() or 0), 0, step=1)
-        top_k = st.slider("Top N（稱呼柱狀圖）", 5, 30, 15, step=1)
-        top_p = st.slider("Top N（人物共現）", 5, 30, 15, step=1)
-        show_table = st.checkbox("顯示稱呼明細表格", value=False)
-        show_people_table = st.checkbox("顯示人物共現表格", value=False)
+        selected_cities = st.multiselect("Select City", options=all_cities, default=all_cities)
+        selected_people = st.multiselect("Select Character (co-occurrence)", options=all_people)
+        kw = st.text_input("Terms keyword (fuzzy match)", value="")
+        min_total = st.slider("Minimum total count", 0, int(df["總次數"].max() or 0), 0, step=1)
+        top_k = st.slider("Top N (Terms bar chart)", 5, 30, 15, step=1)
+        top_p = st.slider("Top N (Character co-occurrence)", 5, 30, 15, step=1)
+        show_table = st.checkbox("Show Terms details table", value=False)
+        show_people_table = st.checkbox("Show Character co-occurrence table", value=False)
 
     f = df.copy()
     if selected_cities:
@@ -162,14 +162,14 @@ def main():
 
     city_agg = make_city_agg(f)
     with col_map:
-        st.subheader("地圖：按城市聚合")
+        st.subheader("Map: Aggregated by City")
         if city_agg.empty:
-            st.info("沒有符合條件的城市數據")
+            st.info("No matching city data")
         else:
             lat = np.average(city_agg["緯度"], weights=city_agg["總次數"])
             lon = np.average(city_agg["經度"], weights=city_agg["總次數"])
             tooltip = {
-                "html": "<b>城市:</b> {城市}<br/><b>總次數:</b> {總次數}<br/><b>Top稱呼:</b> {Top稱呼}",
+                "html": "<b>City:</b> {城市}<br/><b>Total Count:</b> {總次數}<br/><b>Top Termss:</b> {Top稱呼}",
                 "style": {"backgroundColor": "white", "color": "black"},
             }
             layer = pdk.Layer(
@@ -188,32 +188,32 @@ def main():
             st.pydeck_chart(deck)
 
     with col_chart:
-        st.subheader("圖表：Top N 稱呼（按總次數）")
+        st.subheader("Chart: Top N Termss (by total count)")
         if f.empty:
-            st.info("沒有符合條件的稱呼數據")
+            st.info("No matching Terms data")
         else:
             top_df = f.sort_values("總次數", ascending=False).head(top_k).copy()
             chart = (
                 alt.Chart(top_df)
                 .mark_bar()
                 .encode(
-                    x=alt.X("總次數:Q", title="總次數"),
-                    y=alt.Y("稱呼:N", sort="-x", title="稱呼"),
-                    color=alt.Color("城市:N", title="城市"),
+                    x=alt.X("總次數:Q", title="Total Count"),
+                    y=alt.Y("稱呼:N", sort="-x", title="Terms"),
+                    color=alt.Color("城市:N", title="City"),
                     tooltip=[
-                        alt.Tooltip("稱呼:N"),
-                        alt.Tooltip("城市:N"),
-                        alt.Tooltip("總次數:Q"),
+                        alt.Tooltip("稱呼:N", title="Terms"),
+                        alt.Tooltip("城市:N", title="City"),
+                        alt.Tooltip("總次數:Q", title="Total Count"),
                     ],
                 )
                 .properties(height=420)
             )
             st.altair_chart(chart)
 
-    st.subheader("章節分布（按篩選結果彙總）")
+    st.subheader("Chapter Distribution (filtered results aggregated)")
     ch_long = explode_chapter_details(f)
     if ch_long.empty:
-        st.info("沒有章節分布數據")
+        st.info("No chapter distribution data")
     else:
         chap_agg = (
             ch_long.groupby("章節", as_index=False)["次數"]
@@ -224,39 +224,39 @@ def main():
             alt.Chart(chap_agg)
             .mark_bar()
             .encode(
-                x=alt.X("章節:N", sort=None, title="章節"),
-                y=alt.Y("次數:Q", title="次數"),
-                tooltip=[alt.Tooltip("章節:N"), alt.Tooltip("次數:Q")],
+                x=alt.X("章節:N", sort=None, title="Chapter"),
+                y=alt.Y("次數:Q", title="Count"),
+                tooltip=[alt.Tooltip("章節:N", title="Chapter"), alt.Tooltip("次數:Q", title="Count")],
             )
             .properties(height=280)
         )
         st.altair_chart(chap_chart)
 
-    st.subheader("人物共現分析（同行人物）")
+    st.subheader("Character Co-occurrence Analysis")
     people_agg = aggregate_people(f)
     if people_agg.empty:
-        st.info("沒有人物共現數據")
+        st.info("No character co-occurrence data")
     else:
         top_people = people_agg.head(top_p)
         p_chart = (
             alt.Chart(top_people)
             .mark_bar()
             .encode(
-                x=alt.X("加權次數:Q", title="加權次數(累加稱呼總次數)"),
-                y=alt.Y("人物:N", sort="-x", title="人物"),
+                x=alt.X("加權次數:Q", title="Weighted Count (sum of Terms total count)"),
+                y=alt.Y("人物:N", sort="-x", title="Character"),
                 tooltip=[
-                    alt.Tooltip("人物:N"),
-                    alt.Tooltip("出現行數:Q", title="出現行數"),
-                    alt.Tooltip("加權次數:Q", title="加權次數"),
+                    alt.Tooltip("人物:N", title="Character"),
+                    alt.Tooltip("出現行數:Q", title="Occurrence Rows"),
+                    alt.Tooltip("加權次數:Q", title="Weighted Count"),
                 ],
-                color=alt.Color("出現行數:Q", title="出現行數", scale=alt.Scale(scheme="reds")),
+                color=alt.Color("出現行數:Q", title="Occurrence Rows", scale=alt.Scale(scheme="reds")),
             )
             .properties(height=360)
         )
         st.altair_chart(p_chart)
 
     if show_table:
-        st.subheader("稱呼明細（當前篩選）")
+        st.subheader("Terms Details (current filters)")
         display_cols = [
             "稱呼",
             "城市",
@@ -268,13 +268,13 @@ def main():
             f[display_cols].sort_values(["城市", "總次數"], ascending=[True, False])
         )
         csv1 = f[display_cols].to_csv(index=False, encoding="utf-8-sig")
-        st.download_button("下載稱呼篩選結果 CSV", data=csv1, file_name="稱呼分析_篩選結果.csv", mime="text/csv")
+        st.download_button("Download Terms filtered results CSV", data=csv1, file_name="稱呼分析_篩選結果.csv", mime="text/csv")
 
     if show_people_table and not people_agg.empty:
-        st.subheader("人物共現表格（當前篩選）")
+        st.subheader("Character Co-occurrence Table (current filters)")
         st.dataframe(people_agg.reset_index(drop=True))
         csv2 = people_agg.to_csv(index=False, encoding="utf-8-sig")
-        st.download_button("下載人物共現結果 CSV", data=csv2, file_name="人物共現_篩選結果.csv", mime="text/csv")
+        st.download_button("Download Character co-occurrence results CSV", data=csv2, file_name="人物共現_篩選結果.csv", mime="text/csv")
 
 
 if __name__ == "__main__":
